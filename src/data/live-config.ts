@@ -455,15 +455,19 @@ export interface GridLayout {
  * own on top (`rowCounts = [1, ...rest]`) where `rest` is `rowCountsFor` of
  * the remaining `n - 1` cameras: honouring a column pin when there is one
  * (so a 4-pin over 9 cameras yields `[1, 4, 4]`), spreading the remainder
- * across rows at the capped column count when `maxColumns` is in force with
- * no pin (so a 2-cap over 9 cameras yields `[1, 2, 2, 2, 2]` — the cap must
- * bind here too, or a hero tile above a strip of slivers is exactly what it
- * exists to prevent), or a single `[n - 1]` strip when columns are fully
- * automatic — deliberately not the square-ish automatic layout, which would
- * stack enough rows under the hero to tip the whole card into portrait (a
- * full-width 16:9 hero is already only 0.56x the card width tall before
- * anything else is added below it). `hero` needs at least 2 cameras to mean
- * anything; below that it falls through to `"bottom"`.
+ * across rows at the cap itself — not the top-level automatic `cols`, which
+ * is computed for the full camera count and can be narrower than the cap
+ * even allows — when `maxColumns` is in force with no pin *and* the cap is
+ * actually narrower than the strip needs (`cap < n - 1`; so a 2-cap over 9
+ * cameras yields `[1, 2, 2, 2, 2]` — the cap must bind here too, or a hero
+ * tile above a strip of slivers is exactly what it exists to prevent), or a
+ * single `[n - 1]` strip otherwise — no cap, no pin, or a cap wide enough
+ * that it wouldn't have narrowed the strip anyway — deliberately not the
+ * square-ish automatic layout, which would stack enough rows under the hero
+ * to tip the whole card into portrait (a full-width 16:9 hero is already
+ * only 0.56x the card width tall before anything else is added below it).
+ * `hero` needs at least 2 cameras to mean anything; below that it falls
+ * through to `"bottom"`.
  */
 export function gridLayout(
   count: number,
@@ -498,15 +502,17 @@ export function gridLayout(
     let rest: number[];
     if (pinned > 0) {
       rest = rowCountsFor(n - 1, cols, true);
-    } else if (cap > 0) {
-      // A narrow-screen cap is in force: spread the remainder across rows
-      // at the capped column count, same as the top-level automatic grid
-      // under the same cap — an uncapped single strip is exactly what the
-      // cap exists to prevent.
-      rest = rowCountsFor(n - 1, cols, false);
+    } else if (cap > 0 && cap < n - 1) {
+      // A narrow-screen cap is in force and actually narrower than the
+      // strip needs: spread the remainder across rows at the cap itself —
+      // not the top-level automatic `cols`, which is computed for the full
+      // camera count and can be narrower than the cap even allows — an
+      // uncapped single strip is exactly what the cap exists to prevent.
+      rest = rowCountsFor(n - 1, cap, false);
     } else {
-      // No cap, no pin: a single landscape strip, not the square-ish
-      // automatic layout — see the docblock above for why.
+      // No cap, no pin, or a cap that doesn't actually bind (it's as wide
+      // as or wider than the strip needs): a single landscape strip, not
+      // the square-ish automatic layout — see the docblock above for why.
       rest = [n - 1];
     }
     rowCounts = [1, ...rest];

@@ -647,6 +647,15 @@ describe("gridLayout", () => {
         expect(gridLayout(12, { emphasis: "hero" }).rowCounts).toEqual([1, 11]);
       });
 
+      it("leaves the layout untouched when the cap doesn't actually bind (cap >= n - 1)", () => {
+        for (let n = 2; n <= 40; n++) {
+          const baseline = gridLayout(n, { emphasis: "hero" });
+          for (let cap = n - 1; cap <= n + 2; cap++) {
+            expect(gridLayout(n, { emphasis: "hero", maxColumns: cap })).toEqual(baseline);
+          }
+        }
+      });
+
       it("still lets an explicit pin beat the cap", () => {
         expect(gridLayout(9, { emphasis: "hero", columns: 4, maxColumns: 2 }).rowCounts).toEqual([
           1, 4, 4,
