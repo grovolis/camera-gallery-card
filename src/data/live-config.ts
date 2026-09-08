@@ -424,50 +424,27 @@ export interface GridLayout {
 /**
  * Compute a gapless tile grid for `count` cameras.
  *
- * Rows are allowed to hold different numbers of tiles, and a row holding
- * fewer tiles is given a proportionally taller `fr` value — a row of `c`
- * tiles occupies `1/c` of the unit height, which is exactly what keeps each
- * of its tiles at the target aspect ratio (up to the grid's `gap`, which is
- * not itself proportional to the `fr` split). That means no cell is ever
- * left empty, and no tile is meaningfully letterboxed or cropped by the
- * grid itself.
+ * Rows can hold different tile counts; a row of `c` tiles gets `1/c` of the
+ * unit height, which keeps its tiles at the target aspect ratio — no cell
+ * goes empty, none is letterboxed or cropped. Column tracks subdivide to
+ * `LCM(rowCounts)` so one `grid-template-columns` fits every row; a tile in
+ * a row of `c` spans `unit / c` tracks, doubling as that row's `fr` value.
  *
- * Column tracks are subdivided to `LCM(rowCounts)` so a single
- * `grid-template-columns` serves every row; a tile in a row of `c` spans
- * `unit / c` tracks. The same integer doubles as that row's `fr` value.
+ * Column count:
+ *  - **1-3 cameras** sit in a single row; above that the grid stays roughly
+ *    square at `ceil(sqrt(count))` columns.
+ *  - **`columns`** pins the count outright, filling rows greedily (`cols,
+ *    cols, …, remainder`) so the pinned count is exactly what renders.
+ *  - **`maxColumns`** caps only the automatic choice — never the pin — so
+ *    an explicit pin is honoured at any width.
  *
- * Automatic column choice: 1-3 cameras sit in a single row; above that the
- * grid stays roughly square at `ceil(sqrt(count))` columns, spreading tiles
- * as evenly as possible across rows. `columns` pins the count outright — in
- * that case rows are filled greedily (`cols, cols, …, remainder`) so the
- * pinned count is exactly what renders, rather than being re-spread away.
- * `maxColumns` caps the automatic choice only (the narrow-screen fallback),
- * so an explicit pin is honoured at any width.
- *
- * `emphasis` picks which row(s) render larger, independent of all of the
- * above — it only ever reorders or regroups `rowCounts`, never changes which
- * columns exist. `"bottom"` (the default, and the fallback for any
- * unrecognised or absent value) is today's shape: the fuller — and so
- * visually smaller — rows first, with the shorter, taller row(s) at the
- * bottom. `"top"` reverses that array so the short row lands first; the row
- * spans just get reordered, so their sum — and therefore the container
- * `aspectRatio` — can't change. `"hero"` gives camera 1 a solid row of its
- * own on top (`rowCounts = [1, ...rest]`) where `rest` is `rowCountsFor` of
- * the remaining `n - 1` cameras: honouring a column pin when there is one
- * (so a 4-pin over 9 cameras yields `[1, 4, 4]`), spreading the remainder
- * across rows at the cap itself — not the top-level automatic `cols`, which
- * is computed for the full camera count and can be narrower than the cap
- * even allows — when `maxColumns` is in force with no pin *and* the cap is
- * actually narrower than the strip needs (`cap < n - 1`; so a 2-cap over 9
- * cameras yields `[1, 2, 2, 2, 2]` — the cap must bind here too, or a hero
- * tile above a strip of slivers is exactly what it exists to prevent), or a
- * single `[n - 1]` strip otherwise — no cap, no pin, or a cap wide enough
- * that it wouldn't have narrowed the strip anyway — deliberately not the
- * square-ish automatic layout, which would stack enough rows under the hero
- * to tip the whole card into portrait (a full-width 16:9 hero is already
- * only 0.56x the card width tall before anything else is added below it).
- * `hero` needs at least 2 cameras to mean anything; below that it falls
- * through to `"bottom"`.
+ * `emphasis` only reorders or regroups `rowCounts`; it never changes which
+ * columns exist:
+ *  - **`"bottom"`** (default): fuller, smaller rows first, the taller
+ *    row(s) last.
+ *  - **`"top"`**: reverses that array so the short row lands first.
+ *  - **`"hero"`**: camera 1 gets a solid row of its own on top, the rest
+ *    laid out below (needs ≥2 cameras; falls back to `"bottom"` otherwise).
  */
 export function gridLayout(
   count: number,
@@ -498,21 +475,28 @@ export function gridLayout(
 
   let rowCounts: number[];
   if (emphasis === "hero" && n >= 2) {
-    // Camera 1 gets a solid row to itself; the rest lay out below it.
     let rest: number[];
     if (pinned > 0) {
+      // Honour the pin for the remainder too — a 4-pin over 9 cameras
+      // yields [1, 4, 4].
       rest = rowCountsFor(n - 1, cols, true);
     } else if (cap > 0 && cap < n - 1) {
-      // A narrow-screen cap is in force and actually narrower than the
-      // strip needs: spread the remainder across rows at the cap itself —
-      // not the top-level automatic `cols`, which is computed for the full
-      // camera count and can be narrower than the cap even allows — an
-      // uncapped single strip is exactly what the cap exists to prevent.
+      // The cap must still bind here, or a hero tile ends up above a strip
+      // of slivers — exactly what the narrow-screen cap exists to prevent.
+      // A 2-cap over 9 cameras yields [1, 2, 2, 2, 2].
+      //
+      // Laid out at the cap itself, not the top-level automatic `cols`:
+      // `cols` is computed for the full camera count and can be narrower
+      // than the cap actually allows, which would narrow the strip when
+      // the cap didn't require it.
       rest = rowCountsFor(n - 1, cap, false);
     } else {
-      // No cap, no pin, or a cap that doesn't actually bind (it's as wide
-      // as or wider than the strip needs): a single landscape strip, not
-      // the square-ish automatic layout — see the docblock above for why.
+      // No cap, no pin, or a cap wide enough that it wouldn't have
+      // narrowed the strip anyway: a single landscape strip, not the
+      // square-ish automatic layout — that would stack enough rows under
+      // the hero to tip the whole card into portrait (a full-width 16:9
+      // hero is already about 0.56x the card width tall before anything
+      // else is added below it).
       rest = [n - 1];
     }
     rowCounts = [1, ...rest];
