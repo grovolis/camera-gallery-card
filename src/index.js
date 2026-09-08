@@ -2555,6 +2555,16 @@ class CameraGalleryCard extends LitElement {
     });
   }
 
+  // Sets a tile's grid span and its CSS `order` from the entity's current
+  // index in `cameras`. Kept together because auto-placement needs both to
+  // agree: `order` puts the tile in the right slot, span sizes it once
+  // there. Never move the tile itself to reorder it — see _teardownLiveView
+  // above for why ha-camera-stream can't tolerate being detached/reattached.
+  _applyTileLayout(tile, idx, layout) {
+    tile.style.setProperty("--cgc-tile-span", String(layout.tileSpans[idx] ?? 1));
+    tile.style.order = String(idx);
+  }
+
   async _mountLiveGrid() {
     if (!this._isLiveActive()) return;
     const host = this.renderRoot?.querySelector("#live-card-host");
@@ -2591,16 +2601,20 @@ class CameraGalleryCard extends LitElement {
           const so = this._hass?.states?.[entity];
           if (so?.last_changed !== stream.stateObj?.last_changed) stream.stateObj = so;
         }
-        const idx = cameras.indexOf(entity);
-        existing.style.setProperty("--cgc-tile-span", String(layout.tileSpans[idx] ?? 1));
+        // Reused tiles stay put in the DOM even when `cameras` gets
+        // reordered, so span alone can't fix placement — `_applyTileLayout`
+        // also sets `order` to re-sort auto-placement without touching the DOM.
+        this._applyTileLayout(existing, cameras.indexOf(entity), layout);
         continue;
       }
 
       const tile = document.createElement("div");
       tile.className = "live-grid-tile";
       tile.dataset.entity = entity;
-      const spanIdx = cameras.indexOf(entity);
-      tile.style.setProperty("--cgc-tile-span", String(layout.tileSpans[spanIdx] ?? 1));
+      // New tiles are always appended at the end, so once older tiles are
+      // out of position, DOM order alone won't match `cameras` order
+      // either — `_applyTileLayout`'s `order` assignment fixes both cases.
+      this._applyTileLayout(tile, cameras.indexOf(entity), layout);
       tile.addEventListener("click", () => this._onGridTileTap(entity));
 
       const stream = document.createElement("ha-camera-stream");
