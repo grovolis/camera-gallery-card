@@ -319,6 +319,9 @@ class CameraGalleryCard extends LitElement {
     this._liveGridTiles = new Map();
     // Narrow-screen cap on the grid's automatic column count. null = uncapped.
     this._gridMaxCols = null;
+    this._gridResizeObserver = null;
+    this._gridResizeTarget = null;
+    this._gridResizeTimer = null;
     this._liveCardPending = null;
     this._rtcPeerConnection = null;
     this._rtcWebSocket = null;
@@ -841,6 +844,7 @@ class CameraGalleryCard extends LitElement {
 
     this._clearPreviewVideoHostPlayback();
     this._teardownLiveView();
+    this._stopGridResizeObserver();
 
     this._clearThumbLongPress();
 
@@ -2555,11 +2559,70 @@ class CameraGalleryCard extends LitElement {
     });
   }
 
+  // Cap the grid's automatic column count on narrow cards so tiles don't
+  // shrink to postage stamps in a sidebar or on a phone. An explicit
+  // live_grid_columns pin bypasses this — gridLayout ignores maxColumns
+  // when a pin is set.
+  _gridMaxColsForWidth(width) {
+    if (!Number.isFinite(width) || width <= 0) return null;
+    if (width < 400) return 2;
+    if (width < 600) return 3;
+    return null;
+  }
+
+  // Called from updated(), so it runs after every render. `.preview` is
+  // conditionally rendered and can be replaced, hence the re-target check
+  // rather than a one-shot start.
+  _syncGridResizeObserver() {
+    if (typeof ResizeObserver === "undefined") return;
+    const target = this.renderRoot?.querySelector(".preview") || null;
+    if (target === this._gridResizeTarget) return;
+
+    if (this._gridResizeObserver) this._gridResizeObserver.disconnect();
+    this._gridResizeTarget = target;
+    if (!target) {
+      this._gridResizeObserver = null;
+      return;
+    }
+
+    this._gridResizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width ?? 0;
+      const next = this._gridMaxColsForWidth(width);
+      if (next === this._gridMaxCols) return;
+      // Debounce: a drag-resize fires this continuously, and every remount
+      // re-lays-out each ha-camera-stream. The cap is applied inside the
+      // timer so the preview's aspect-ratio and the grid tracks — both read
+      // from _gridMaxCols — can never disagree mid-resize.
+      if (this._gridResizeTimer) clearTimeout(this._gridResizeTimer);
+      this._gridResizeTimer = setTimeout(() => {
+        this._gridResizeTimer = null;
+        if (next === this._gridMaxCols) return;
+        this._gridMaxCols = next;
+        if (!isGridLayout(this.config, this._liveLayoutOverride)) return;
+        this.requestUpdate();
+        this._mountLiveCard();
+      }, 150);
+    });
+    this._gridResizeObserver.observe(target);
+  }
+
+  _stopGridResizeObserver() {
+    if (this._gridResizeTimer) {
+      clearTimeout(this._gridResizeTimer);
+      this._gridResizeTimer = null;
+    }
+    if (this._gridResizeObserver) {
+      this._gridResizeObserver.disconnect();
+      this._gridResizeObserver = null;
+    }
+    this._gridResizeTarget = null;
+  }
+
   // Sets a tile's grid span and its CSS `order` from the entity's current
   // index in `cameras`. Kept together because auto-placement needs both to
   // agree: `order` puts the tile in the right slot, span sizes it once
   // there. Never move the tile itself to reorder it — see _teardownLiveView
-  // above for why ha-camera-stream can't tolerate being detached/reattached.
+  // below for why ha-camera-stream can't tolerate being detached/reattached.
   _applyTileLayout(tile, idx, layout) {
     tile.style.setProperty("--cgc-tile-span", String(layout.tileSpans[idx] ?? 1));
     tile.style.order = String(idx);
@@ -5242,6 +5305,7 @@ class CameraGalleryCard extends LitElement {
     }
 
     this._setupThumbObserver();
+    this._syncGridResizeObserver();
   }
 
   _setupThumbObserver() {
