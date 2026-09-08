@@ -60,7 +60,7 @@ import {
   getLiveCameraOptions,
   getStreamEntries,
   getStreamEntryById,
-  gridDims,
+  gridLayout,
   hasAnyMicStream,
   hasLiveConfig,
   isGridLayout,
@@ -317,6 +317,8 @@ class CameraGalleryCard extends LitElement {
     this._liveLayoutOverride = null;
     // Per-tile player elements when in grid layout, keyed by camera entity.
     this._liveGridTiles = new Map();
+    // Narrow-screen cap on the grid's automatic column count. null = uncapped.
+    this._gridMaxCols = null;
     this._liveCardPending = null;
     this._rtcPeerConnection = null;
     this._rtcWebSocket = null;
@@ -1864,6 +1866,11 @@ class CameraGalleryCard extends LitElement {
    */
   _getPreviewAspectRatio(isLive) {
     if (!isLive) return this._aspectRatio || "16/9";
+    // Grid mode sizes the pane to the tile grid, so every tile lands at the
+    // configured ratio instead of being squashed into a fixed 16/9 box.
+    if (isGridLayout(this.config, this._liveLayoutOverride)) {
+      return this._getGridLayout(getGridCameraEntities(this.config).length).aspectRatio;
+    }
     const cams = Array.isArray(this.config?.live_cameras) ? this.config.live_cameras : [];
     const active = this._getEffectiveLiveCamera?.() || "";
     if (active && cams.length) {
@@ -2537,21 +2544,32 @@ class CameraGalleryCard extends LitElement {
     this._liveGridTiles.clear();
   }
 
+  // Single place that turns the camera count into a tile layout, so the
+  // grid mount and the preview's aspect-ratio can't drift apart.
+  _getGridLayout(count) {
+    const pinned = Number(this.config?.live_grid_columns) || 0;
+    return gridLayout(count, {
+      columns: pinned > 0 ? pinned : null,
+      maxColumns: this._gridMaxCols,
+      aspectRatio: this._aspectRatio || "16/9",
+    });
+  }
+
   async _mountLiveGrid() {
     if (!this._isLiveActive()) return;
     const host = this.renderRoot?.querySelector("#live-card-host");
     if (!host) return;
 
     const cameras = getGridCameraEntities(this.config);
-    const { cols, rows } = gridDims(cameras.length);
+    const layout = this._getGridLayout(cameras.length);
 
     if (!host.classList.contains("live-grid-host")) {
       host.classList.add("live-grid-host");
       host.innerHTML = "";
       this._liveGridTiles.clear();
     }
-    host.style.setProperty("--cgc-grid-cols", String(cols));
-    host.style.setProperty("--cgc-grid-rows", String(rows));
+    host.style.setProperty("--cgc-grid-template-cols", layout.templateColumns);
+    host.style.setProperty("--cgc-grid-template-rows", layout.templateRows);
     host.classList.toggle("live-grid-no-labels", this.config?.live_grid_labels === false);
 
     // Remove tiles for cameras no longer present.
@@ -2573,12 +2591,16 @@ class CameraGalleryCard extends LitElement {
           const so = this._hass?.states?.[entity];
           if (so?.last_changed !== stream.stateObj?.last_changed) stream.stateObj = so;
         }
+        const idx = cameras.indexOf(entity);
+        existing.style.setProperty("--cgc-tile-span", String(layout.tileSpans[idx] ?? 1));
         continue;
       }
 
       const tile = document.createElement("div");
       tile.className = "live-grid-tile";
       tile.dataset.entity = entity;
+      const spanIdx = cameras.indexOf(entity);
+      tile.style.setProperty("--cgc-tile-span", String(layout.tileSpans[spanIdx] ?? 1));
       tile.addEventListener("click", () => this._onGridTileTap(entity));
 
       const stream = document.createElement("ha-camera-stream");
@@ -6261,7 +6283,7 @@ const CGC_CONFIG_KEY_ORDER = [
   "show_today", "show_media_filter", "show_favorite", "show_live",
   // ─── Live ───
   "live_enabled", "live_auto_muted", "live_cameras", "live_layout",
-  "live_grid_labels", "live_stream_urls", "live_go2rtc_url",
+  "live_grid_labels", "live_grid_columns", "live_stream_urls", "live_go2rtc_url",
   "live_mic_mode", "live_mic_audio_processing",
   "live_mic_shape", "live_mic_button_position",
   "live_mic_waveform_enabled", "live_mic_waveform_sensitivity",
