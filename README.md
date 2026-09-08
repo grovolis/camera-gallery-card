@@ -136,7 +136,7 @@ A few notes on the generic walker:
 - **Aspect ratio toggle** — quickly switch between 16:9, 4:3 and 1:1, remembered per camera
 - Live badge
 - **Multiple live cameras** — configure several cameras and switch between them using chevron arrows
-- **Multi-camera grid layout** (`live_layout: grid`) — show all cameras at once, tap a tile to focus on one
+- **Multi-camera grid layout** (`live_layout: grid`) — show all cameras at once, tap a tile to focus on one. The grid shapes itself to the camera count so there are no empty cells, every tile keeps the card's configured aspect ratio, and the card's height adapts to fit. Pin the column count with `live_grid_columns`, or leave it automatic (narrow cards drop to fewer columns on their own)
 - **Multiple RTSP streams** — configure multiple named RTSP streams via `live_stream_urls`
 - **Offline camera placeholder** — unavailable cameras show a clear "offline" tile instead of a black frame
 - **Keyboard navigation** — <kbd>←</kbd>/<kbd>→</kbd> to switch between cameras in single layout
@@ -304,6 +304,7 @@ Then in the card editor: **General → Delete services → Frigate** → pick `r
 | `live_camera_entities` | Camera entities visible in the live picker |
 | `live_layout` | `single` or `grid` (multi-camera) |
 | `live_grid_labels` | Show camera name labels in grid mode |
+| `live_grid_columns` | Pin the grid's column count (1–8). Omit for automatic — narrow cards automatically use fewer columns |
 | `live_stream_urls` | Array of named RTSP streams: `[{url, name}]` |
 | `live_auto_muted` | Auto-mute audio in live view |
 | `controls_mode` | Live controls display: `overlay` or `fixed` |
@@ -398,6 +399,16 @@ object_filters:
   - person
   - car
 ```
+
+Grid mode, showing all cameras at once instead of one at a time:
+
+```yaml
+live_layout: grid
+live_grid_columns: 2 # optional — omit to let the grid shape itself to the camera count
+```
+
+> [!NOTE]
+> Upgrading from an older version? The grid used to force a square (2x2, 3x3, 4x4), leaving dead cells at any camera count that wasn't a perfect square. It now shapes itself to the camera count instead, and the card's **height changes to match** — most counts other than 4, 9 and 16 will look taller, shorter or wider than before. Three cameras, for example, becomes a single wide row. No cell is ever left empty.
 
 ### Reolink NVR / Doorbell / camera
 
