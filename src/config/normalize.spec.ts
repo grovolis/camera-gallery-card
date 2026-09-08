@@ -796,3 +796,28 @@ describe("live_grid_columns", () => {
     );
   });
 });
+
+describe("live_grid_emphasis", () => {
+  it("passes a valid value through untouched", () => {
+    const { config } = normalizeConfig({
+      ...minimalSensor,
+      live_layout: "grid",
+      live_grid_emphasis: "hero",
+    });
+    expect(config.live_grid_emphasis).toBe("hero");
+  });
+
+  it("leaves the key absent when it is not configured", () => {
+    const { config } = normalizeConfig({
+      ...minimalSensor,
+      live_layout: "grid",
+    });
+    expect(config.live_grid_emphasis).toBeUndefined();
+  });
+
+  it("rejects an invalid value", () => {
+    expect(() => normalizeConfig({ ...minimalSensor, live_grid_emphasis: "sideways" })).toThrow(
+      /invalid config/
+    );
+  });
+});

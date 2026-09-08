@@ -144,6 +144,7 @@ export interface InputConfig {
   live_layout?: string;
   live_grid_labels?: boolean;
   live_grid_columns?: number;
+  live_grid_emphasis?: string;
   live_stream_url?: string;
   live_stream_name?: string;
   live_stream_urls?: LiveStreamUrlEntryInput[];
