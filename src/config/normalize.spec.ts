@@ -786,4 +786,13 @@ describe("live_grid_columns", () => {
     });
     expect(config.live_grid_columns).toBeUndefined();
   });
+
+  it("rejects out-of-range column counts", () => {
+    expect(() => normalizeConfig({ ...minimalSensor, live_grid_columns: 0 })).toThrow(
+      /invalid config/
+    );
+    expect(() => normalizeConfig({ ...minimalSensor, live_grid_columns: 9 })).toThrow(
+      /invalid config/
+    );
+  });
 });
