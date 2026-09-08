@@ -768,3 +768,22 @@ describe("Idempotence — running normalize on already-canonical output is a no-
     expect(second.config).toEqual(first.config);
   });
 });
+
+describe("live_grid_columns", () => {
+  it("passes an in-range column pin through untouched", () => {
+    const { config } = normalizeConfig({
+      ...minimalSensor,
+      live_layout: "grid",
+      live_grid_columns: 2,
+    });
+    expect(config.live_grid_columns).toBe(2);
+  });
+
+  it("leaves the key absent when it is not configured", () => {
+    const { config } = normalizeConfig({
+      ...minimalSensor,
+      live_layout: "grid",
+    });
+    expect(config.live_grid_columns).toBeUndefined();
+  });
+});

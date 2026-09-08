@@ -143,6 +143,7 @@ export interface InputConfig {
   live_cameras?: LiveCameraEntryInput[];
   live_layout?: string;
   live_grid_labels?: boolean;
+  live_grid_columns?: number;
   live_stream_url?: string;
   live_stream_name?: string;
   live_stream_urls?: LiveStreamUrlEntryInput[];
