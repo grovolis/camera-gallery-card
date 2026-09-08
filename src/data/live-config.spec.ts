@@ -326,6 +326,27 @@ describe("gridLayout", () => {
     }
   });
 
+  it("stays gapless under every emphasis, pinned or automatic", () => {
+    const emphases: Array<string | null | undefined> = ["bottom", "top", "hero", undefined];
+    for (let n = 1; n <= 40; n++) {
+      for (const emphasis of emphases) {
+        const pins = [null, ...Array.from({ length: 8 }, (_, i) => i + 1)];
+        for (const pin of pins) {
+          const l = gridLayout(n, { columns: pin, emphasis });
+          const sum = l.rowCounts.reduce((a, b) => a + b, 0);
+          expect(sum, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(n);
+          for (const c of l.rowCounts) {
+            expect(c, `n=${n} emphasis=${emphasis} pin=${pin}`).toBeGreaterThanOrEqual(1);
+            expect(l.unit % c, `n=${n} emphasis=${emphasis} pin=${pin} row of ${c}`).toBe(0);
+          }
+          expect(l.tileSpans, `n=${n} emphasis=${emphasis} pin=${pin}`).toHaveLength(n);
+          expect(l.cols, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(Math.max(...l.rowCounts));
+          expect(l.rows, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(l.rowCounts.length);
+        }
+      }
+    }
+  });
+
   it("puts 2 and 3 cameras in a single row", () => {
     expect(gridLayout(2)).toMatchObject({
       cols: 2,
@@ -501,6 +522,129 @@ describe("gridLayout", () => {
       expect(l.unit).toBeGreaterThanOrEqual(1);
       expect(l.templateRows.length).toBeGreaterThan(0);
     }
+  });
+
+  describe("emphasis: top", () => {
+    it("reverses the row order so the short row lands on top", () => {
+      expect(gridLayout(5, { emphasis: "top" })).toMatchObject({
+        rowCounts: [2, 3],
+        unit: 6,
+        templateRows: "3fr 2fr",
+        aspectRatio: "32/15",
+      });
+      expect(gridLayout(7, { emphasis: "top" })).toMatchObject({
+        rowCounts: [2, 2, 3],
+        unit: 6,
+        templateRows: "3fr 3fr 2fr",
+        aspectRatio: "4/3",
+      });
+      expect(gridLayout(8, { emphasis: "top" })).toMatchObject({
+        rowCounts: [2, 3, 3],
+        unit: 6,
+        templateRows: "3fr 2fr 2fr",
+        aspectRatio: "32/21",
+      });
+      expect(gridLayout(10, { emphasis: "top" })).toMatchObject({
+        rowCounts: [3, 3, 4],
+        unit: 12,
+        templateRows: "4fr 4fr 3fr",
+        aspectRatio: "64/33",
+      });
+    });
+
+    it("cannot change the aspect ratio — reordering rows doesn't change the span sum", () => {
+      for (let n = 1; n <= 40; n++) {
+        const bottom = gridLayout(n);
+        const top = gridLayout(n, { emphasis: "top" });
+        expect(top.aspectRatio, `n=${n}`).toBe(bottom.aspectRatio);
+      }
+    });
+
+    it("is a visual no-op when every row is already equal", () => {
+      for (const n of [2, 3, 4, 6, 9, 12, 16]) {
+        const bottom = gridLayout(n);
+        const top = gridLayout(n, { emphasis: "top" });
+        expect(top.rowCounts, `n=${n}`).toEqual(bottom.rowCounts);
+      }
+    });
+  });
+
+  describe("emphasis: hero", () => {
+    it("puts camera 1 alone on the top row, automatic columns", () => {
+      expect(gridLayout(2, { emphasis: "hero" })).toMatchObject({
+        rowCounts: [1, 1],
+        unit: 1,
+        templateRows: "1fr 1fr",
+        aspectRatio: "8/9",
+      });
+      expect(gridLayout(3, { emphasis: "hero" })).toMatchObject({
+        rowCounts: [1, 2],
+        unit: 2,
+        templateRows: "2fr 1fr",
+        aspectRatio: "32/27",
+      });
+      expect(gridLayout(5, { emphasis: "hero" })).toMatchObject({
+        rowCounts: [1, 4],
+        unit: 4,
+        templateRows: "4fr 1fr",
+        aspectRatio: "64/45",
+      });
+      expect(gridLayout(9, { emphasis: "hero" })).toMatchObject({
+        rowCounts: [1, 8],
+        unit: 8,
+        templateRows: "8fr 1fr",
+        aspectRatio: "128/81",
+      });
+    });
+
+    it("uses the pinned column count for the remainder", () => {
+      expect(gridLayout(5, { emphasis: "hero", columns: 4 })).toMatchObject({
+        rowCounts: [1, 4],
+        unit: 4,
+        templateRows: "4fr 1fr",
+        aspectRatio: "64/45",
+      });
+      expect(gridLayout(9, { emphasis: "hero", columns: 4 })).toMatchObject({
+        rowCounts: [1, 4, 4],
+        unit: 4,
+        templateRows: "4fr 1fr 1fr",
+        aspectRatio: "32/27",
+      });
+      expect(gridLayout(13, { emphasis: "hero", columns: 4 })).toMatchObject({
+        rowCounts: [1, 4, 4, 4],
+        unit: 4,
+        templateRows: "4fr 1fr 1fr 1fr",
+        aspectRatio: "64/63",
+      });
+    });
+
+    it("falls through to the normal layout when there's no meaningful hero (n < 2)", () => {
+      const hero = gridLayout(1, { emphasis: "hero" });
+      const bottom = gridLayout(1);
+      expect(hero).toEqual(bottom);
+    });
+  });
+
+  describe("emphasis: bottom / unrecognised / absent", () => {
+    it("produces byte-identical output to the current no-emphasis behaviour", () => {
+      const bogus: Array<string | null | undefined> = ["bottom", "nonsense", null, undefined];
+      for (let n = 1; n <= 40; n++) {
+        const baseline = gridLayout(n);
+        for (const emphasis of bogus) {
+          const withEmphasis =
+            emphasis === undefined ? gridLayout(n, {}) : gridLayout(n, { emphasis });
+          expect(withEmphasis.rowCounts, `n=${n} emphasis=${emphasis}`).toEqual(baseline.rowCounts);
+          expect(withEmphasis.templateRows, `n=${n} emphasis=${emphasis}`).toBe(
+            baseline.templateRows
+          );
+          expect(withEmphasis.aspectRatio, `n=${n} emphasis=${emphasis}`).toBe(
+            baseline.aspectRatio
+          );
+        }
+        // Omitted `opts` entirely is also equivalent.
+        expect(gridLayout(n)).toEqual(baseline);
+      }
+    });
   });
 });
 

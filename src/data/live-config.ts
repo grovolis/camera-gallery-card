@@ -386,6 +386,29 @@ function parseRatio(raw: string | null | undefined): [number, number] {
   return [16, 9];
 }
 
+/**
+ * Row counts for an `n`-camera grid at `cols` columns — "fuller rows first".
+ *
+ * `pinned` mirrors `gridLayout`'s own greedy-vs-even-spread split: a pinned
+ * column count is filled greedily (full rows of `cols`, then the remainder)
+ * so the requested count is exactly what renders, while the automatic path
+ * spreads tiles as evenly as possible across `rows = ceil(n / cols)` rows.
+ * Shared by the top-level grid and by `hero`'s remainder-row computation so
+ * neither duplicates the greedy/even-spread logic.
+ */
+function rowCountsFor(n: number, cols: number, pinned: boolean): number[] {
+  const rows = Math.ceil(n / cols);
+  const rowCounts: number[] = [];
+  if (pinned) {
+    for (let i = 0; i < rows; i++) rowCounts.push(Math.min(cols, n - i * cols));
+  } else {
+    const base = Math.floor(n / rows);
+    const rem = n % rows;
+    for (let i = 0; i < rows; i++) rowCounts.push(i < rem ? base + 1 : base);
+  }
+  return rowCounts;
+}
+
 export interface GridLayout {
   cols: number;
   rows: number;
@@ -419,6 +442,23 @@ export interface GridLayout {
  * pinned count is exactly what renders, rather than being re-spread away.
  * `maxColumns` caps the automatic choice only (the narrow-screen fallback),
  * so an explicit pin is honoured at any width.
+ *
+ * `emphasis` picks which row(s) render larger, independent of all of the
+ * above — it only ever reorders or regroups `rowCounts`, never changes which
+ * columns exist. `"bottom"` (the default, and the fallback for any
+ * unrecognised or absent value) is today's shape: the fuller — and so
+ * visually smaller — rows first, with the shorter, taller row(s) at the
+ * bottom. `"top"` reverses that array so the short row lands first; the row
+ * spans just get reordered, so their sum — and therefore the container
+ * `aspectRatio` — can't change. `"hero"` gives camera 1 a solid row of its
+ * own on top (`rowCounts = [1, ...rest]`) where `rest` is `rowCountsFor` of
+ * the remaining `n - 1` cameras: honouring a column pin when there is one
+ * (so a 4-pin over 9 cameras yields `[1, 4, 4]`), or a single `[n - 1]` strip
+ * when columns are automatic — deliberately not the square-ish automatic
+ * layout, which would stack enough rows under the hero to tip the whole
+ * card into portrait (a full-width 16:9 hero is already only 0.56x the card
+ * width tall before anything else is added below it). `hero` needs at least
+ * 2 cameras to mean anything; below that it falls through to `"bottom"`.
  */
 export function gridLayout(
   count: number,
@@ -426,12 +466,14 @@ export function gridLayout(
     columns?: number | null;
     maxColumns?: number | null;
     aspectRatio?: string | null;
+    emphasis?: string | null | undefined;
   }
 ): GridLayout {
   const n = Math.max(1, Math.floor(Number(count) || 0) || 1);
 
   const pinned = Math.floor(Number(opts?.columns) || 0);
   const cap = Math.floor(Number(opts?.maxColumns) || 0);
+  const emphasis = opts?.emphasis === "top" || opts?.emphasis === "hero" ? opts.emphasis : "bottom";
 
   let cols: number;
   if (pinned > 0) {
@@ -442,18 +484,19 @@ export function gridLayout(
   }
   cols = Math.max(1, cols);
 
-  const rows = Math.ceil(n / cols);
-  const rowCounts: number[] = [];
-  if (pinned > 0) {
-    // An explicit pin is filled greedily — full rows of `cols`, then
-    // whatever remains — so the requested column count is exactly what
-    // renders. (Even-spreading this, like the automatic path does, can
-    // silently produce a different column count than the one pinned.)
-    for (let i = 0; i < rows; i++) rowCounts.push(Math.min(cols, n - i * cols));
+  let rowCounts: number[];
+  if (emphasis === "hero" && n >= 2) {
+    // Camera 1 gets a solid row to itself; the rest lay out below it.
+    const rest =
+      pinned > 0
+        ? rowCountsFor(n - 1, cols, true)
+        : // Automatic columns: a single landscape strip, not the square-ish
+          // automatic layout — see the docblock above for why.
+          [n - 1];
+    rowCounts = [1, ...rest];
   } else {
-    const base = Math.floor(n / rows);
-    const rem = n % rows;
-    for (let i = 0; i < rows; i++) rowCounts.push(i < rem ? base + 1 : base);
+    rowCounts = rowCountsFor(n, cols, pinned > 0);
+    if (emphasis === "top") rowCounts = [...rowCounts].reverse();
   }
   // The returned `cols` always reflects what actually renders (the widest
   // row), never just the requested pin — so it can't contradict `templateColumns`.
@@ -476,7 +519,7 @@ export function gridLayout(
 
   return {
     cols,
-    rows,
+    rows: rowCounts.length,
     rowCounts,
     unit,
     tileSpans,
