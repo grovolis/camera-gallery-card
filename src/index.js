@@ -2578,6 +2578,10 @@ class CameraGalleryCard extends LitElement {
     const target = this.renderRoot?.querySelector(".preview") || null;
     if (target === this._gridResizeTarget) return;
 
+    if (this._gridResizeTimer) {
+      clearTimeout(this._gridResizeTimer);
+      this._gridResizeTimer = null;
+    }
     if (this._gridResizeObserver) this._gridResizeObserver.disconnect();
     this._gridResizeTarget = target;
     if (!target) {
@@ -8085,6 +8089,7 @@ class CameraGalleryCardEditor extends HTMLElement {
     const liveEnabled = c.live_enabled === true;
     const liveCameraEntities = getLiveCameraEntityIds(c);
     const liveLayout = c.live_layout === "grid" ? "grid" : "single";
+    const liveGridCols = Number(c.live_grid_columns) || 0;
 
 
     const cameraEntities = Object.keys(this._hass?.states || {})
@@ -8997,6 +9002,15 @@ class CameraGalleryCardEditor extends HTMLElement {
               <button class="seg ${liveLayout === "single" ? "on" : ""}" data-livelayout="single">Single</button>
               <button class="seg ${liveLayout === "grid" ? "on" : ""}" data-livelayout="grid">Grid</button>
             </div>
+            ${liveLayout === "grid" ? `
+            <div class="lbl" style="margin-top:10px;">Grid columns</div>
+            <div class="desc"><code>Auto</code> shapes the grid to the number of cameras and fills every cell. Pin a number to force a fixed column count.</div>
+            <div class="segwrap">
+              ${[0, 1, 2, 3, 4].map((n) => `
+                <button class="seg ${liveGridCols === n ? "on" : ""}" data-gridcols="${n}">${n === 0 ? "Auto" : n}</button>
+              `).join("")}
+            </div>
+            ` : ``}
           </div>
           ` : ``}
 
@@ -13079,10 +13093,30 @@ details summary { user-select: none; }
           delete next.live_layout;
           this._config = this._stripAlwaysTrueKeys(next);
           this._fire();
+          this._scheduleRender();
         } else {
           this._set("live_layout", val);
         }
         btn.closest(".segwrap")?.querySelectorAll(".seg").forEach((s) => s.classList.toggle("on", s === btn));
+      });
+    });
+
+    this.shadowRoot.querySelectorAll(".seg[data-gridcols]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const val = Number(btn.dataset.gridcols) || 0;
+        if (val === 0) {
+          // Auto is the default — drop the key so the YAML stays minimal.
+          const next = { ...this._config };
+          delete next.live_grid_columns;
+          this._config = this._stripAlwaysTrueKeys(next);
+          this._fire();
+        } else {
+          this._set("live_grid_columns", val);
+        }
+        btn
+          .closest(".segwrap")
+          ?.querySelectorAll(".seg")
+          .forEach((s) => s.classList.toggle("on", s === btn));
       });
     });
 
