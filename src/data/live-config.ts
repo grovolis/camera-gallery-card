@@ -362,19 +362,123 @@ export function getLiveCameraEntityIds(
   return out;
 }
 
+/** Greatest common divisor. Both args must be positive integers. */
+function gcd(a: number, b: number): number {
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+/** Least common multiple. Both args must be positive integers. */
+function lcm(a: number, b: number): number {
+  return (a / gcd(a, b)) * b;
+}
+
+/** Parse "16/9" (or "16:9") into a positive [w, h] pair. Falls back to 16:9. */
+function parseRatio(raw: string | null | undefined): [number, number] {
+  const parts = String(raw ?? "").split(/[/:]/);
+  const w = Number(parts[0]);
+  const h = Number(parts[1]);
+  if (parts.length === 2 && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    return [w, h];
+  }
+  return [16, 9];
+}
+
+export interface GridLayout {
+  cols: number;
+  rows: number;
+  rowCounts: number[];
+  unit: number;
+  tileSpans: number[];
+  templateColumns: string;
+  templateRows: string;
+  aspectRatio: string;
+}
+
 /**
- * Map the number of cameras to grid dimensions. Always a square so two
- * cameras don't render as a 1×2 row (which looks broken next to single-cam
- * mode); empty cells fill with the host background.
+ * Compute a gapless tile grid for `count` cameras.
  *
- * Breakpoints: ≤4 → 2×2, ≤9 → 3×3, else 4×4 (camera counts beyond 16 keep
- * 4×4 and just clip silently — sane fallback over picking 5×5 on a
- * mobile screen).
+ * Rows are allowed to hold different numbers of tiles, and a row holding
+ * fewer tiles is given a proportionally taller `fr` value — a row of `c`
+ * tiles occupies `1/c` of the unit height, which is exactly what keeps each
+ * of its tiles at the target aspect ratio. That means no cell is ever left
+ * empty and no tile is ever letterboxed or cropped by the grid itself.
+ *
+ * Column tracks are subdivided to `LCM(rowCounts)` so a single
+ * `grid-template-columns` serves every row; a tile in a row of `c` spans
+ * `unit / c` tracks. The same integer doubles as that row's `fr` value.
+ *
+ * Automatic column choice: 1-3 cameras sit in a single row; above that the
+ * grid stays roughly square at `ceil(sqrt(count))` columns. `columns` pins
+ * the count outright; `maxColumns` caps the automatic choice only (the
+ * narrow-screen fallback), so an explicit pin is honoured at any width.
+ */
+export function gridLayout(
+  count: number,
+  opts?: {
+    columns?: number | null;
+    maxColumns?: number | null;
+    aspectRatio?: string | null;
+  }
+): GridLayout {
+  const n = Math.max(1, Math.floor(Number(count) || 0) || 1);
+
+  const pinned = Math.floor(Number(opts?.columns) || 0);
+  const cap = Math.floor(Number(opts?.maxColumns) || 0);
+
+  let cols: number;
+  if (pinned > 0) {
+    cols = Math.min(pinned, n);
+  } else {
+    cols = n <= 3 ? n : Math.ceil(Math.sqrt(n));
+    if (cap > 0) cols = Math.min(cols, cap);
+  }
+  cols = Math.max(1, cols);
+
+  const rows = Math.ceil(n / cols);
+  const base = Math.floor(n / rows);
+  const rem = n % rows;
+
+  const rowCounts: number[] = [];
+  for (let i = 0; i < rows; i++) rowCounts.push(i < rem ? base + 1 : base);
+
+  const unit = rowCounts.reduce(lcm, 1);
+  const rowSpans = rowCounts.map((c) => unit / c);
+
+  const tileSpans: number[] = [];
+  rowCounts.forEach((c, i) => {
+    const span = rowSpans[i]!;
+    for (let k = 0; k < c; k++) tileSpans.push(span);
+  });
+
+  const [arW, arH] = parseRatio(opts?.aspectRatio);
+  const totalSpan = rowSpans.reduce((a, b) => a + b, 0);
+  const ratioW = arW * unit;
+  const ratioH = arH * totalSpan;
+  const d = gcd(ratioW, ratioH) || 1;
+
+  return {
+    cols,
+    rows,
+    rowCounts,
+    unit,
+    tileSpans,
+    templateColumns: `repeat(${unit}, 1fr)`,
+    templateRows: rowSpans.map((s) => `${s}fr`).join(" "),
+    aspectRatio: `${ratioW / d}/${ratioH / d}`,
+  };
+}
+
+/**
+ * Legacy column/row pair. Superseded by `gridLayout`, which also returns the
+ * per-tile spans and the container ratio; kept so external callers that only
+ * wanted the dimensions keep working.
  */
 export function gridDims(count: number): { cols: number; rows: number } {
-  if (count <= 4) return { cols: 2, rows: 2 };
-  if (count <= 9) return { cols: 3, rows: 3 };
-  return { cols: 4, rows: 4 };
+  const { cols, rows } = gridLayout(count);
+  return { cols, rows };
 }
 
 /**

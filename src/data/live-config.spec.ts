@@ -11,6 +11,7 @@ import {
   getStreamEntries,
   getStreamEntryById,
   gridDims,
+  gridLayout,
   hasAnyMicStream,
   hasLiveConfig,
   isGridLayout,
@@ -302,28 +303,174 @@ describe("getLiveCameraEntityIds", () => {
   });
 });
 
+describe("gridLayout", () => {
+  it("fills every cell — row counts sum to the camera count", () => {
+    for (let n = 1; n <= 20; n++) {
+      const l = gridLayout(n);
+      const sum = l.rowCounts.reduce((a, b) => a + b, 0);
+      expect(sum, `n=${n}`).toBe(n);
+    }
+  });
+
+  it("gives each row spans that exactly fill the unit width", () => {
+    for (let n = 1; n <= 20; n++) {
+      const l = gridLayout(n);
+      for (const c of l.rowCounts) {
+        expect(l.unit % c, `n=${n} row of ${c}`).toBe(0);
+      }
+      // Every tile span is an integer number of unit tracks.
+      for (const s of l.tileSpans) {
+        expect(Number.isInteger(s), `n=${n}`).toBe(true);
+      }
+      expect(l.tileSpans).toHaveLength(n);
+    }
+  });
+
+  it("puts 2 and 3 cameras in a single row", () => {
+    expect(gridLayout(2)).toMatchObject({
+      cols: 2,
+      rows: 1,
+      rowCounts: [2],
+      unit: 2,
+      templateColumns: "repeat(2, 1fr)",
+      templateRows: "1fr",
+      aspectRatio: "32/9",
+    });
+    expect(gridLayout(3)).toMatchObject({
+      cols: 3,
+      rows: 1,
+      rowCounts: [3],
+      unit: 3,
+      templateRows: "1fr",
+      aspectRatio: "16/3",
+    });
+  });
+
+  it("splits 5 cameras 3/2 with a taller second row", () => {
+    expect(gridLayout(5)).toMatchObject({
+      cols: 3,
+      rows: 2,
+      rowCounts: [3, 2],
+      unit: 6,
+      tileSpans: [2, 2, 2, 3, 3],
+      templateColumns: "repeat(6, 1fr)",
+      templateRows: "2fr 3fr",
+      aspectRatio: "32/15",
+    });
+  });
+
+  it("splits 7 cameras 3/2/2", () => {
+    expect(gridLayout(7)).toMatchObject({
+      rowCounts: [3, 2, 2],
+      unit: 6,
+      tileSpans: [2, 2, 2, 3, 3, 3, 3],
+      templateRows: "2fr 3fr 3fr",
+      aspectRatio: "4/3",
+    });
+  });
+
+  it("splits 8 cameras 3/3/2", () => {
+    expect(gridLayout(8)).toMatchObject({
+      rowCounts: [3, 3, 2],
+      unit: 6,
+      templateRows: "2fr 2fr 3fr",
+      aspectRatio: "32/21",
+    });
+  });
+
+  it("splits 10 cameras 4/3/3", () => {
+    expect(gridLayout(10)).toMatchObject({
+      cols: 4,
+      rowCounts: [4, 3, 3],
+      unit: 12,
+      templateRows: "3fr 4fr 4fr",
+      aspectRatio: "64/33",
+    });
+  });
+
+  it("keeps perfect squares identical to the old square layout", () => {
+    expect(gridLayout(4)).toMatchObject({
+      cols: 2,
+      rows: 2,
+      rowCounts: [2, 2],
+      unit: 2,
+      templateRows: "1fr 1fr",
+      aspectRatio: "16/9",
+    });
+    expect(gridLayout(9)).toMatchObject({
+      cols: 3,
+      rows: 3,
+      templateRows: "1fr 1fr 1fr",
+      aspectRatio: "16/9",
+    });
+    expect(gridLayout(16)).toMatchObject({
+      cols: 4,
+      rows: 4,
+      templateRows: "1fr 1fr 1fr 1fr",
+      aspectRatio: "16/9",
+    });
+  });
+
+  it("flows past 16 cameras instead of clipping", () => {
+    const l = gridLayout(20);
+    expect(l.rowCounts.reduce((a, b) => a + b, 0)).toBe(20);
+    expect(l.cols).toBe(5);
+    expect(l.tileSpans).toHaveLength(20);
+  });
+
+  it("honours a pinned column count", () => {
+    expect(gridLayout(5, { columns: 2 })).toMatchObject({
+      cols: 2,
+      rows: 3,
+      rowCounts: [2, 2, 1],
+      unit: 2,
+      tileSpans: [1, 1, 1, 1, 2],
+      templateRows: "1fr 1fr 2fr",
+    });
+  });
+
+  it("clamps a pinned column count to the camera count", () => {
+    expect(gridLayout(2, { columns: 4 }).cols).toBe(2);
+    expect(gridLayout(5, { columns: 0 }).cols).toBe(3); // 0 is falsy -> automatic
+    expect(gridLayout(5, { columns: -1 }).cols).toBe(3); // invalid -> automatic
+  });
+
+  it("applies maxColumns to the automatic choice only", () => {
+    expect(gridLayout(5, { maxColumns: 2 }).cols).toBe(2);
+    expect(gridLayout(9, { maxColumns: 2 }).rowCounts).toEqual([2, 2, 2, 2, 1]);
+    // An explicit pin beats the cap.
+    expect(gridLayout(9, { columns: 3, maxColumns: 2 }).cols).toBe(3);
+  });
+
+  it("derives the aspect ratio from the configured tile ratio", () => {
+    expect(gridLayout(4, { aspectRatio: "4/3" }).aspectRatio).toBe("4/3");
+    expect(gridLayout(5, { aspectRatio: "4/3" }).aspectRatio).toBe("8/5");
+    expect(gridLayout(4, { aspectRatio: "1/1" }).aspectRatio).toBe("1/1");
+    // Garbage falls back to 16/9.
+    expect(gridLayout(4, { aspectRatio: "nonsense" }).aspectRatio).toBe("16/9");
+  });
+
+  it("handles degenerate counts without dividing by zero", () => {
+    for (const n of [0, -1, 1.5, NaN]) {
+      const l = gridLayout(n as number);
+      expect(l.cols).toBeGreaterThanOrEqual(1);
+      expect(l.rows).toBeGreaterThanOrEqual(1);
+      expect(l.unit).toBeGreaterThanOrEqual(1);
+      expect(l.templateRows.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("gridDims", () => {
-  it("returns 2x2 for counts 0..4", () => {
-    for (const n of [0, 1, 2, 3, 4]) {
-      expect(gridDims(n)).toEqual({ cols: 2, rows: 2 });
-    }
+  it("still returns cols/rows for the counts it always handled", () => {
+    expect(gridDims(4)).toEqual({ cols: 2, rows: 2 });
+    expect(gridDims(9)).toEqual({ cols: 3, rows: 3 });
+    expect(gridDims(16)).toEqual({ cols: 4, rows: 4 });
   });
 
-  it("returns 3x3 for counts 5..9", () => {
-    for (const n of [5, 6, 7, 8, 9]) {
-      expect(gridDims(n)).toEqual({ cols: 3, rows: 3 });
-    }
-  });
-
-  it("returns 4x4 for counts 10..16", () => {
-    for (const n of [10, 12, 16]) {
-      expect(gridDims(n)).toEqual({ cols: 4, rows: 4 });
-    }
-  });
-
-  it("returns 4x4 for counts > 16 (cap, no 5x5 fallback)", () => {
-    expect(gridDims(17)).toEqual({ cols: 4, rows: 4 });
-    expect(gridDims(100)).toEqual({ cols: 4, rows: 4 });
+  it("now packs odd counts instead of forcing a square", () => {
+    expect(gridDims(5)).toEqual({ cols: 3, rows: 2 });
+    expect(gridDims(2)).toEqual({ cols: 2, rows: 1 });
   });
 });
 
