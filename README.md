@@ -414,7 +414,7 @@ live_grid_emphasis: hero # optional — bottom (default), top, or hero
 
 > [!NOTE]
 > `live_grid_emphasis` has two rough edges worth knowing about:
-> - `top` has no visible effect at 2, 3, 4, 6, 9, 12 or 16 cameras — at those counts every row already holds the same number of tiles, so there's no size difference to move.
+> - `top` has no visible effect at e.g. 2, 3, 4, 6, 9, 12 or 16 cameras — at those counts every row already holds the same number of tiles, so there's no size difference to move.
 > - `hero`'s supporting strip gets thin above roughly 8 cameras (at 9 cameras each supporting tile is 1/8 of the width). Pin `live_grid_columns` to fix the shape — `hero` with `live_grid_columns: 4` on 9 cameras gives one hero tile plus two rows of four.
 
 ### Reolink NVR / Doorbell / camera

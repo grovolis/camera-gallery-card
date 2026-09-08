@@ -326,22 +326,29 @@ describe("gridLayout", () => {
     }
   });
 
-  it("stays gapless under every emphasis, pinned or automatic", () => {
+  it("stays gapless under every emphasis, pinned or automatic, capped or not", () => {
     const emphases: Array<string | null | undefined> = ["bottom", "top", "hero", undefined];
-    for (let n = 1; n <= 40; n++) {
+    for (let n = 1; n <= 80; n++) {
       for (const emphasis of emphases) {
         const pins = [null, ...Array.from({ length: 8 }, (_, i) => i + 1)];
         for (const pin of pins) {
-          const l = gridLayout(n, { columns: pin, emphasis });
-          const sum = l.rowCounts.reduce((a, b) => a + b, 0);
-          expect(sum, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(n);
-          for (const c of l.rowCounts) {
-            expect(c, `n=${n} emphasis=${emphasis} pin=${pin}`).toBeGreaterThanOrEqual(1);
-            expect(l.unit % c, `n=${n} emphasis=${emphasis} pin=${pin} row of ${c}`).toBe(0);
+          for (let cap = 0; cap <= 4; cap++) {
+            const l = gridLayout(n, {
+              columns: pin,
+              maxColumns: cap > 0 ? cap : null,
+              emphasis,
+            });
+            const label = `n=${n} emphasis=${emphasis} pin=${pin} cap=${cap}`;
+            const sum = l.rowCounts.reduce((a, b) => a + b, 0);
+            expect(sum, label).toBe(n);
+            for (const c of l.rowCounts) {
+              expect(c, label).toBeGreaterThanOrEqual(1);
+              expect(l.unit % c, `${label} row of ${c}`).toBe(0);
+            }
+            expect(l.tileSpans, label).toHaveLength(n);
+            expect(l.cols, label).toBe(Math.max(...l.rowCounts));
+            expect(l.rows, label).toBe(l.rowCounts.length);
           }
-          expect(l.tileSpans, `n=${n} emphasis=${emphasis} pin=${pin}`).toHaveLength(n);
-          expect(l.cols, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(Math.max(...l.rowCounts));
-          expect(l.rows, `n=${n} emphasis=${emphasis} pin=${pin}`).toBe(l.rowCounts.length);
         }
       }
     }
@@ -622,6 +629,29 @@ describe("gridLayout", () => {
       const hero = gridLayout(1, { emphasis: "hero" });
       const bottom = gridLayout(1);
       expect(hero).toEqual(bottom);
+    });
+
+    describe("with maxColumns (narrow-screen cap)", () => {
+      it("spreads the remainder at the capped column count instead of one wide strip", () => {
+        expect(gridLayout(5, { emphasis: "hero", maxColumns: 2 }).rowCounts).toEqual([1, 2, 2]);
+        expect(gridLayout(9, { emphasis: "hero", maxColumns: 2 }).rowCounts).toEqual([
+          1, 2, 2, 2, 2,
+        ]);
+        expect(gridLayout(9, { emphasis: "hero", maxColumns: 3 }).rowCounts).toEqual([1, 3, 3, 2]);
+        expect(gridLayout(7, { emphasis: "hero", maxColumns: 3 }).rowCounts).toEqual([1, 3, 3]);
+      });
+
+      it("keeps the single-strip remainder when there is no cap", () => {
+        expect(gridLayout(5, { emphasis: "hero" }).rowCounts).toEqual([1, 4]);
+        expect(gridLayout(9, { emphasis: "hero" }).rowCounts).toEqual([1, 8]);
+        expect(gridLayout(12, { emphasis: "hero" }).rowCounts).toEqual([1, 11]);
+      });
+
+      it("still lets an explicit pin beat the cap", () => {
+        expect(gridLayout(9, { emphasis: "hero", columns: 4, maxColumns: 2 }).rowCounts).toEqual([
+          1, 4, 4,
+        ]);
+      });
     });
   });
 

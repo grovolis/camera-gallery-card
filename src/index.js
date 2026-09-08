@@ -110,6 +110,7 @@ import {
   DEFAULT_DELETE_SERVICE,
   DEFAULT_LIVE_AUTO_MUTED,
   DEFAULT_LIVE_ENABLED,
+  DEFAULT_LIVE_GRID_EMPHASIS,
   DEFAULT_MAX_MEDIA,
   DEFAULT_PREVIEW_CLOSE_ON_TAP_WHEN_GATED,
   PTZ_SPEED_MAX,
@@ -8092,7 +8093,9 @@ class CameraGalleryCardEditor extends HTMLElement {
     const liveLayout = c.live_layout === "grid" ? "grid" : "single";
     const liveGridCols = Number(c.live_grid_columns) || 0;
     const liveGridEmphasis =
-      c.live_grid_emphasis === "top" || c.live_grid_emphasis === "hero" ? c.live_grid_emphasis : "bottom";
+      c.live_grid_emphasis === "top" || c.live_grid_emphasis === "hero"
+        ? c.live_grid_emphasis
+        : DEFAULT_LIVE_GRID_EMPHASIS;
 
 
     const cameraEntities = Object.keys(this._hass?.states || {})
@@ -13134,8 +13137,8 @@ details summary { user-select: none; }
       btn.addEventListener("click", () => {
         const val = btn.dataset.gridemphasis === "top" || btn.dataset.gridemphasis === "hero"
           ? btn.dataset.gridemphasis
-          : "bottom";
-        if (val === "bottom") {
+          : DEFAULT_LIVE_GRID_EMPHASIS;
+        if (val === DEFAULT_LIVE_GRID_EMPHASIS) {
           // Bottom is the default — drop the key so the YAML stays minimal.
           const next = { ...this._config };
           delete next.live_grid_emphasis;

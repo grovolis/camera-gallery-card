@@ -13,6 +13,7 @@
  * `live_stream_urls`. See `getStreamEntries` for the fallback.
  */
 
+import { DEFAULT_LIVE_GRID_EMPHASIS } from "../const";
 import type { CameraGalleryCardConfig } from "../config/normalize";
 import type { HassEntity } from "../types/hass";
 
@@ -453,12 +454,16 @@ export interface GridLayout {
  * `aspectRatio` — can't change. `"hero"` gives camera 1 a solid row of its
  * own on top (`rowCounts = [1, ...rest]`) where `rest` is `rowCountsFor` of
  * the remaining `n - 1` cameras: honouring a column pin when there is one
- * (so a 4-pin over 9 cameras yields `[1, 4, 4]`), or a single `[n - 1]` strip
- * when columns are automatic — deliberately not the square-ish automatic
- * layout, which would stack enough rows under the hero to tip the whole
- * card into portrait (a full-width 16:9 hero is already only 0.56x the card
- * width tall before anything else is added below it). `hero` needs at least
- * 2 cameras to mean anything; below that it falls through to `"bottom"`.
+ * (so a 4-pin over 9 cameras yields `[1, 4, 4]`), spreading the remainder
+ * across rows at the capped column count when `maxColumns` is in force with
+ * no pin (so a 2-cap over 9 cameras yields `[1, 2, 2, 2, 2]` — the cap must
+ * bind here too, or a hero tile above a strip of slivers is exactly what it
+ * exists to prevent), or a single `[n - 1]` strip when columns are fully
+ * automatic — deliberately not the square-ish automatic layout, which would
+ * stack enough rows under the hero to tip the whole card into portrait (a
+ * full-width 16:9 hero is already only 0.56x the card width tall before
+ * anything else is added below it). `hero` needs at least 2 cameras to mean
+ * anything; below that it falls through to `"bottom"`.
  */
 export function gridLayout(
   count: number,
@@ -473,7 +478,10 @@ export function gridLayout(
 
   const pinned = Math.floor(Number(opts?.columns) || 0);
   const cap = Math.floor(Number(opts?.maxColumns) || 0);
-  const emphasis = opts?.emphasis === "top" || opts?.emphasis === "hero" ? opts.emphasis : "bottom";
+  const emphasis =
+    opts?.emphasis === "top" || opts?.emphasis === "hero"
+      ? opts.emphasis
+      : DEFAULT_LIVE_GRID_EMPHASIS;
 
   let cols: number;
   if (pinned > 0) {
@@ -487,12 +495,20 @@ export function gridLayout(
   let rowCounts: number[];
   if (emphasis === "hero" && n >= 2) {
     // Camera 1 gets a solid row to itself; the rest lay out below it.
-    const rest =
-      pinned > 0
-        ? rowCountsFor(n - 1, cols, true)
-        : // Automatic columns: a single landscape strip, not the square-ish
-          // automatic layout — see the docblock above for why.
-          [n - 1];
+    let rest: number[];
+    if (pinned > 0) {
+      rest = rowCountsFor(n - 1, cols, true);
+    } else if (cap > 0) {
+      // A narrow-screen cap is in force: spread the remainder across rows
+      // at the capped column count, same as the top-level automatic grid
+      // under the same cap — an uncapped single strip is exactly what the
+      // cap exists to prevent.
+      rest = rowCountsFor(n - 1, cols, false);
+    } else {
+      // No cap, no pin: a single landscape strip, not the square-ish
+      // automatic layout — see the docblock above for why.
+      rest = [n - 1];
+    }
     rowCounts = [1, ...rest];
   } else {
     rowCounts = rowCountsFor(n, cols, pinned > 0);
