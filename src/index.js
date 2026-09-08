@@ -2556,6 +2556,7 @@ class CameraGalleryCard extends LitElement {
       columns: pinned > 0 ? pinned : null,
       maxColumns: this._gridMaxCols,
       aspectRatio: this._aspectRatio || "16/9",
+      emphasis: this.config?.live_grid_emphasis ?? null,
     });
   }
 
@@ -6365,7 +6366,7 @@ const CGC_CONFIG_KEY_ORDER = [
   "show_today", "show_media_filter", "show_favorite", "show_live",
   // ─── Live ───
   "live_enabled", "live_auto_muted", "live_cameras", "live_layout",
-  "live_grid_labels", "live_grid_columns", "live_stream_urls", "live_go2rtc_url",
+  "live_grid_labels", "live_grid_columns", "live_grid_emphasis", "live_stream_urls", "live_go2rtc_url",
   "live_mic_mode", "live_mic_audio_processing",
   "live_mic_shape", "live_mic_button_position",
   "live_mic_waveform_enabled", "live_mic_waveform_sensitivity",
@@ -8090,6 +8091,8 @@ class CameraGalleryCardEditor extends HTMLElement {
     const liveCameraEntities = getLiveCameraEntityIds(c);
     const liveLayout = c.live_layout === "grid" ? "grid" : "single";
     const liveGridCols = Number(c.live_grid_columns) || 0;
+    const liveGridEmphasis =
+      c.live_grid_emphasis === "top" || c.live_grid_emphasis === "hero" ? c.live_grid_emphasis : "bottom";
 
 
     const cameraEntities = Object.keys(this._hass?.states || {})
@@ -9009,6 +9012,13 @@ class CameraGalleryCardEditor extends HTMLElement {
               ${[0, 1, 2, 3, 4].map((n) => `
                 <button class="seg ${liveGridCols === n ? "on" : ""}" data-gridcols="${n}">${n === 0 ? "Auto" : n}</button>
               `).join("")}
+            </div>
+            <div class="lbl" style="margin-top:10px;">Larger tiles</div>
+            <div class="desc">Where the bigger tiles land when a row has fewer cameras than the rest. <code>Bottom</code> puts the short row last. <code>Top</code> puts it first. <code>Hero</code> gives camera 1 a full row to itself.</div>
+            <div class="segwrap">
+              <button class="seg ${liveGridEmphasis === "bottom" ? "on" : ""}" data-gridemphasis="bottom">Bottom</button>
+              <button class="seg ${liveGridEmphasis === "top" ? "on" : ""}" data-gridemphasis="top">Top</button>
+              <button class="seg ${liveGridEmphasis === "hero" ? "on" : ""}" data-gridemphasis="hero">Hero</button>
             </div>
             ` : ``}
           </div>
@@ -13112,6 +13122,27 @@ details summary { user-select: none; }
           this._fire();
         } else {
           this._set("live_grid_columns", val);
+        }
+        btn
+          .closest(".segwrap")
+          ?.querySelectorAll(".seg")
+          .forEach((s) => s.classList.toggle("on", s === btn));
+      });
+    });
+
+    this.shadowRoot.querySelectorAll(".seg[data-gridemphasis]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const val = btn.dataset.gridemphasis === "top" || btn.dataset.gridemphasis === "hero"
+          ? btn.dataset.gridemphasis
+          : "bottom";
+        if (val === "bottom") {
+          // Bottom is the default — drop the key so the YAML stays minimal.
+          const next = { ...this._config };
+          delete next.live_grid_emphasis;
+          this._config = this._stripAlwaysTrueKeys(next);
+          this._fire();
+        } else {
+          this._set("live_grid_emphasis", val);
         }
         btn
           .closest(".segwrap")
