@@ -22,7 +22,6 @@ import {
   optional,
   record,
   refine,
-  size,
   string,
   type,
   union,
@@ -424,7 +423,7 @@ export const cameraGalleryCardConfigStruct = type({
   // Pin the grid's column count. Absent = automatic (see gridLayout in
   // src/data/live-config.ts). Capped at 8 — beyond that tiles are unusably
   // small on any real dashboard.
-  live_grid_columns: optional(size(integer(), 1, 8)),
+  live_grid_columns: optional(intInRange(1, 8)),
   live_stream_url: optional(string()),
   live_stream_name: optional(string()),
   live_stream_urls: optional(array(liveStreamUrlEntry)),
