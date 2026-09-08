@@ -403,17 +403,22 @@ export interface GridLayout {
  * Rows are allowed to hold different numbers of tiles, and a row holding
  * fewer tiles is given a proportionally taller `fr` value — a row of `c`
  * tiles occupies `1/c` of the unit height, which is exactly what keeps each
- * of its tiles at the target aspect ratio. That means no cell is ever left
- * empty and no tile is ever letterboxed or cropped by the grid itself.
+ * of its tiles at the target aspect ratio (up to the grid's `gap`, which is
+ * not itself proportional to the `fr` split). That means no cell is ever
+ * left empty, and no tile is meaningfully letterboxed or cropped by the
+ * grid itself.
  *
  * Column tracks are subdivided to `LCM(rowCounts)` so a single
  * `grid-template-columns` serves every row; a tile in a row of `c` spans
  * `unit / c` tracks. The same integer doubles as that row's `fr` value.
  *
  * Automatic column choice: 1-3 cameras sit in a single row; above that the
- * grid stays roughly square at `ceil(sqrt(count))` columns. `columns` pins
- * the count outright; `maxColumns` caps the automatic choice only (the
- * narrow-screen fallback), so an explicit pin is honoured at any width.
+ * grid stays roughly square at `ceil(sqrt(count))` columns, spreading tiles
+ * as evenly as possible across rows. `columns` pins the count outright — in
+ * that case rows are filled greedily (`cols, cols, …, remainder`) so the
+ * pinned count is exactly what renders, rather than being re-spread away.
+ * `maxColumns` caps the automatic choice only (the narrow-screen fallback),
+ * so an explicit pin is honoured at any width.
  */
 export function gridLayout(
   count: number,
@@ -438,11 +443,21 @@ export function gridLayout(
   cols = Math.max(1, cols);
 
   const rows = Math.ceil(n / cols);
-  const base = Math.floor(n / rows);
-  const rem = n % rows;
-
   const rowCounts: number[] = [];
-  for (let i = 0; i < rows; i++) rowCounts.push(i < rem ? base + 1 : base);
+  if (pinned > 0) {
+    // An explicit pin is filled greedily — full rows of `cols`, then
+    // whatever remains — so the requested column count is exactly what
+    // renders. (Even-spreading this, like the automatic path does, can
+    // silently produce a different column count than the one pinned.)
+    for (let i = 0; i < rows; i++) rowCounts.push(Math.min(cols, n - i * cols));
+  } else {
+    const base = Math.floor(n / rows);
+    const rem = n % rows;
+    for (let i = 0; i < rows; i++) rowCounts.push(i < rem ? base + 1 : base);
+  }
+  // The returned `cols` always reflects what actually renders (the widest
+  // row), never just the requested pin — so it can't contradict `templateColumns`.
+  cols = Math.max(...rowCounts);
 
   const unit = rowCounts.reduce(lcm, 1);
   const rowSpans = rowCounts.map((c) => unit / c);

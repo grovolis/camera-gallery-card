@@ -425,6 +425,7 @@ describe("gridLayout", () => {
       rowCounts: [2, 2, 1],
       unit: 2,
       tileSpans: [1, 1, 1, 1, 2],
+      templateColumns: "repeat(2, 1fr)",
       templateRows: "1fr 1fr 2fr",
     });
   });
@@ -440,6 +441,48 @@ describe("gridLayout", () => {
     expect(gridLayout(9, { maxColumns: 2 }).rowCounts).toEqual([2, 2, 2, 2, 1]);
     // An explicit pin beats the cap.
     expect(gridLayout(9, { columns: 3, maxColumns: 2 }).cols).toBe(3);
+  });
+
+  it("fills a pin greedily instead of re-spreading it away — the pinned count actually renders", () => {
+    // Regression cases: the old even-spread step recomputed rowCounts from
+    // `rows` alone, so whenever ceil(n / ceil(n / pinned)) !== pinned, the
+    // pin was silently discarded in favor of a different column count.
+    expect(gridLayout(4, { columns: 3 })).toMatchObject({
+      cols: 3,
+      rowCounts: [3, 1],
+      templateColumns: "repeat(3, 1fr)",
+    });
+    expect(gridLayout(5, { columns: 4 })).toMatchObject({
+      cols: 4,
+      rowCounts: [4, 1],
+      templateColumns: "repeat(4, 1fr)",
+    });
+    expect(gridLayout(6, { columns: 4 })).toMatchObject({
+      cols: 4,
+      rowCounts: [4, 2],
+      templateColumns: "repeat(4, 1fr)",
+    });
+    // The worst case: pinning 4 used to produce output byte-identical to
+    // the automatic 3-column layout, making the control appear inert.
+    expect(gridLayout(9, { columns: 4 })).toMatchObject({
+      cols: 4,
+      rowCounts: [4, 4, 1],
+      templateColumns: "repeat(4, 1fr)",
+      templateRows: "1fr 1fr 4fr",
+    });
+  });
+
+  it("never returns a `cols` that contradicts `templateColumns` / rowCounts", () => {
+    for (let n = 1; n <= 40; n++) {
+      // Automatic path.
+      const auto = gridLayout(n);
+      expect(auto.cols, `auto n=${n}`).toBe(Math.max(...auto.rowCounts));
+      for (let pin = 1; pin <= 8; pin++) {
+        const pinned = gridLayout(n, { columns: pin });
+        expect(pinned.cols, `n=${n} pin=${pin}`).toBe(Math.max(...pinned.rowCounts));
+        expect(pinned.cols, `n=${n} pin=${pin}`).toBe(Math.min(pin, n));
+      }
+    }
   });
 
   it("derives the aspect ratio from the configured tile ratio", () => {
