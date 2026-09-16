@@ -176,8 +176,8 @@ export const cardStyles = css`
   }
   .img-fs-close {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
     background: rgba(0, 0, 0, 0.5);
     border: none;
     border-radius: 50%;

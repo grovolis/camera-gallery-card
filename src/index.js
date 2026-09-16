@@ -74,6 +74,7 @@ import {
   sortPillsByOrder,
 } from "./data/pill-catalog";
 import { WebRtcMicClient } from "./data/webrtc-mic";
+import { pickVideoFullscreen, shouldResumeAfterExit } from "./data/video-fullscreen";
 import {
   detectPtzType,
   detectPtzButtons,
@@ -294,6 +295,7 @@ class CameraGalleryCard extends LitElement {
 
     this._previewMediaKey = "";
     this._previewVideoEl = null;
+    this._videoFsWasPlaying = false;
     this._prefetchKey = "";
     this._selectedPreviewSrc = "";
     this._deleted = new Set();
@@ -1134,6 +1136,10 @@ class CameraGalleryCard extends LitElement {
       });
       video.addEventListener("durationchange", () => {
         this._galleryDuration = isFinite(video.duration) ? video.duration : 0;
+      });
+      video.addEventListener("webkitendfullscreen", () => this._onVideoFullscreenExit(video));
+      video.addEventListener("fullscreenchange", () => {
+        if (document.fullscreenElement !== video) this._onVideoFullscreenExit(video);
       });
 
       host.appendChild(video);
@@ -2390,6 +2396,36 @@ class CameraGalleryCard extends LitElement {
     `;
   }
 
+  _openVideoFullscreen() {
+    const video = this._previewVideoEl;
+    const mode = pickVideoFullscreen(video, !!document.fullscreenEnabled);
+    if (mode === "overlay") {
+      this._openImageFullscreen();
+      return;
+    }
+    this._videoFsWasPlaying = !video.paused;
+    // .pimg blocks pointer events; the native controls need them.
+    video.style.pointerEvents = "auto";
+    video.controls = true;
+    if (mode === "webkit") {
+      video.webkitEnterFullscreen();
+      return;
+    }
+    video.requestFullscreen().catch(() => {
+      this._onVideoFullscreenExit(video);
+      this._openImageFullscreen();
+    });
+  }
+
+  _onVideoFullscreenExit(video) {
+    video.controls = false;
+    video.style.pointerEvents = "";
+    if (shouldResumeAfterExit(this._videoFsWasPlaying, video.paused)) {
+      video.play().catch(() => {});
+    }
+    this._videoFsWasPlaying = false;
+  }
+
   _openImageFullscreen() {
     this._imgFsOpen = true;
     try { this._previewVideoEl?.pause(); } catch (_) {}
@@ -3458,7 +3494,8 @@ class CameraGalleryCard extends LitElement {
             @pointerdown=${(e) => e.stopPropagation()}
             @click=${(e) => {
               e.stopPropagation();
-              this._openImageFullscreen();
+              if (ctx.selectedIsVideo) this._openVideoFullscreen();
+              else this._openImageFullscreen();
             }}
           >
             <ha-icon icon="mdi:fullscreen"></ha-icon>

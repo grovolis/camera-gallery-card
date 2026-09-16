@@ -70,6 +70,7 @@ FileTrack is a fork of the archived [files integration by TarheelGrad1998](https
 
 - Image & video preview
 - **Fullscreen image viewer** — tap to open in fullscreen, rotates to landscape on mobile
+- **Native video fullscreen** — clips open in the platform's own player (iOS, macOS, Android, desktop browsers)
 - Timeline thumbnails with lazy loading
 - Day grouping
 - Filename timestamp parsing
