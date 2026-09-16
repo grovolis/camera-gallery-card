@@ -75,6 +75,7 @@ import {
   sortPillsByOrder,
 } from "./data/pill-catalog";
 import { WebRtcMicClient } from "./data/webrtc-mic";
+import { armWebkitExitResume, pickVideoFullscreen, shouldResumeAfterExit } from "./data/video-fullscreen";
 import {
   detectPtzType,
   detectPtzButtons,
@@ -296,6 +297,8 @@ class CameraGalleryCard extends LitElement {
 
     this._previewMediaKey = "";
     this._previewVideoEl = null;
+    this._videoFsWasPlaying = false;
+    this._videoLastPauseAt = null;
     this._prefetchKey = "";
     this._selectedPreviewSrc = "";
     this._deleted = new Set();
@@ -1146,6 +1149,7 @@ class CameraGalleryCard extends LitElement {
       });
       video.addEventListener("pause", () => {
         this._galleryPlaying = false;
+        this._videoLastPauseAt = performance.now();
         this._stopGalleryProgressRaf();
       });
       video.addEventListener("ended", () => {
@@ -1169,6 +1173,10 @@ class CameraGalleryCard extends LitElement {
       });
       video.addEventListener("durationchange", () => {
         this._galleryDuration = isFinite(video.duration) ? video.duration : 0;
+      });
+      video.addEventListener("webkitendfullscreen", () => this._onVideoFullscreenExit(video));
+      video.addEventListener("fullscreenchange", () => {
+        if (document.fullscreenElement !== video) this._onVideoFullscreenExit(video);
       });
 
       host.appendChild(video);
@@ -2142,6 +2150,7 @@ class CameraGalleryCard extends LitElement {
 
     // iOS Safari: webkitEnterFullscreen op video element
     if (video && video.webkitSupportsFullscreen) {
+      armWebkitExitResume(video);
       video.webkitEnterFullscreen();
       return;
     }
@@ -2428,6 +2437,42 @@ class CameraGalleryCard extends LitElement {
           : body}
       </div>
     `;
+  }
+
+  _openVideoFullscreen() {
+    const video = this._previewVideoEl;
+    const mode = pickVideoFullscreen(video, !!document.fullscreenEnabled);
+    if (mode === "overlay") {
+      this._openImageFullscreen();
+      return;
+    }
+    this._videoFsWasPlaying = !video.paused;
+    // .pimg blocks pointer events; the native controls need them.
+    video.style.pointerEvents = "auto";
+    video.controls = true;
+    if (mode === "webkit") {
+      video.webkitEnterFullscreen();
+      return;
+    }
+    video.requestFullscreen().catch(() => {
+      this._onVideoFullscreenExit(video);
+      this._openImageFullscreen();
+    });
+  }
+
+  _onVideoFullscreenExit(video) {
+    video.controls = false;
+    video.style.pointerEvents = "";
+    const wasPlaying = this._videoFsWasPlaying;
+    const exitedAt = performance.now();
+    this._videoFsWasPlaying = false;
+    // iPhone pauses after this event, not before it. Look again shortly.
+    setTimeout(() => {
+      if (!video.paused || video !== this._previewVideoEl) return;
+      if (shouldResumeAfterExit(wasPlaying, this._videoLastPauseAt, exitedAt)) {
+        video.play().catch(() => {});
+      }
+    }, 500);
   }
 
   _openImageFullscreen() {
@@ -3591,7 +3636,8 @@ class CameraGalleryCard extends LitElement {
             @pointerdown=${(e) => e.stopPropagation()}
             @click=${(e) => {
               e.stopPropagation();
-              this._openImageFullscreen();
+              if (ctx.selectedIsVideo) this._openVideoFullscreen();
+              else this._openImageFullscreen();
             }}
           >
             <ha-icon icon="mdi:fullscreen"></ha-icon>
