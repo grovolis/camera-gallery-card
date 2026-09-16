@@ -68,7 +68,9 @@ import {
   DEFAULT_THUMBNAIL_FRAME_PCT,
   DEFAULT_LIVE_LAYOUT,
   LIVE_GRID_EMPHASES,
+  DEFAULT_LIVE_FULLSCREEN,
   LIVE_LAYOUTS,
+  LIVE_FULLSCREEN_MODES,
   MIC_MODES,
   PTZ_SPEED_DEFAULT,
   PTZ_SPEED_MAX,
@@ -430,6 +432,7 @@ export const cameraGalleryCardConfigStruct = type({
   live_cameras: defaulted(array(liveCameraEntry), []),
   live_camera_entities: defaulted(array(string()), []),
   live_layout: defaulted(enums(LIVE_LAYOUTS), DEFAULT_LIVE_LAYOUT),
+  live_fullscreen: defaulted(enums(LIVE_FULLSCREEN_MODES), DEFAULT_LIVE_FULLSCREEN),
   live_grid_labels: defaulted(boolean(), true),
   // Pin the grid's column count. Absent = automatic (see gridLayout in
   // src/data/live-config.ts). Capped at 8 — beyond that tiles are unusably
