@@ -132,7 +132,8 @@ describe("liveFullscreenTarget", () => {
   const webkitVideo = { webkitSupportsFullscreen: true, webkitEnterFullscreen: noop };
   const plainVideo = { requestFullscreen: noop };
 
-  it("keeps the card path when the user asked for card", () => {
+  it("keeps the card path by default", () => {
+    expect(liveFullscreenTarget(undefined, false, webkitVideo, true)).toBe("card");
     expect(liveFullscreenTarget("card", false, webkitVideo, true)).toBe("card");
   });
 

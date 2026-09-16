@@ -132,7 +132,7 @@ A few notes on the generic walker:
 - Native Home Assistant **WebRTC live preview**
 - Redesigned live view layout: camera name on the left, controls on the right
 - **Controls mode** — choose between `overlay` (controls fade out after inactivity) or `fixed` (always visible)
-- **Native fullscreen** — the live stream opens in the platform's own player; set `live_fullscreen: card` to keep the pills, PTZ and zoom on screen instead (grid layout always does)
+- **Native fullscreen** — set `live_fullscreen: video` to open the live stream in the platform's own player instead of the card overlay (grid layout always uses the card)
 - **Pinch to zoom in card fullscreen** — touch, trackpad, and Ctrl + scroll wheel; pan with the mouse after zooming in
 - **Aspect ratio toggle** — quickly switch between 16:9, 4:3 and 1:1, remembered per camera
 - Live badge
@@ -304,7 +304,7 @@ Then in the card editor: **General → Delete services → Frigate** → pick `r
 | `live_camera_entity` | Default camera entity for live view |
 | `live_camera_entities` | Camera entities visible in the live picker |
 | `live_layout` | `single` or `grid` (multi-camera) |
-| `live_fullscreen` | `video` (platform player, default) or `card` (keeps pills, PTZ and zoom) |
+| `live_fullscreen` | `card` (default, keeps pills, PTZ and zoom) or `video` (platform player) |
 | `live_grid_labels` | Show camera name labels in grid mode |
 | `live_stream_urls` | Array of named RTSP streams: `[{url, name}]` |
 | `live_auto_muted` | Auto-mute audio in live view |

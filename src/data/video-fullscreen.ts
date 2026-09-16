@@ -62,8 +62,8 @@ export function armWebkitExitResume(video: ResumableVideo, delayMs = 500): void 
 export type LiveFullscreenTarget = "webkit" | "standard" | "card";
 
 /**
- * Live view: single camera follows `live_fullscreen`, grid always goes
- * card-level since there is more than one video.
+ * Live view: card-level unless `live_fullscreen: video` on a single
+ * camera. Grid always goes card-level since there is more than one video.
  */
 export function liveFullscreenTarget(
   mode: string | undefined,
@@ -71,7 +71,7 @@ export function liveFullscreenTarget(
   video: FullscreenCapableVideo | null | undefined,
   fullscreenEnabled: boolean
 ): LiveFullscreenTarget {
-  if (mode === "card" || isGrid) return "card";
+  if (mode !== "video" || isGrid) return "card";
   const pick = pickVideoFullscreen(video, fullscreenEnabled);
   return pick === "overlay" ? "card" : pick;
 }

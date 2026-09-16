@@ -8071,7 +8071,7 @@ class CameraGalleryCardEditor extends HTMLElement {
     const liveEnabled = c.live_enabled === true;
     const liveCameraEntities = getLiveCameraEntityIds(c);
     const liveLayout = c.live_layout === "grid" ? "grid" : "single";
-    const liveFullscreen = c.live_fullscreen ?? "video";
+    const liveFullscreen = c.live_fullscreen === "video" ? "video" : "card";
 
 
     const cameraEntities = Object.keys(this._hass?.states || {})
@@ -8989,10 +8989,10 @@ class CameraGalleryCardEditor extends HTMLElement {
 
           <div class="row">
             <div class="lbl">Fullscreen</div>
-            <div class="desc"><code>Video</code> hands the stream to the browser's own player. <code>Card</code> keeps the pills, PTZ and zoom on screen. Grid layout always uses <code>Card</code>.</div>
+            <div class="desc"><code>Card</code> keeps the pills, PTZ and zoom on screen. <code>Video</code> hands the stream to the browser's own player. Grid layout always uses <code>Card</code>.</div>
             <div class="segwrap">
-              <button class="seg ${liveFullscreen === "video" ? "on" : ""}" data-livefs="video">Video</button>
               <button class="seg ${liveFullscreen === "card" ? "on" : ""}" data-livefs="card">Card</button>
+              <button class="seg ${liveFullscreen === "video" ? "on" : ""}" data-livefs="video">Video</button>
             </div>
           </div>
 
@@ -13084,8 +13084,8 @@ details summary { user-select: none; }
 
     this.shadowRoot.querySelectorAll(".seg[data-livefs]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const val = btn.dataset.livefs === "card" ? "card" : "video";
-        if (val === "video") {
+        const val = btn.dataset.livefs === "video" ? "video" : "card";
+        if (val === "card") {
           const next = { ...this._config };
           delete next.live_fullscreen;
           this._config = this._stripAlwaysTrueKeys(next);
