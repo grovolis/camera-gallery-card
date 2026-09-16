@@ -678,9 +678,9 @@ describe("Audit fix #2/#3 — aspect_ratio + controls_mode strictly enumerated",
     );
   });
 
-  it("accepts live_fullscreen: card", () => {
-    const { config } = normalizeConfig({ ...minimalSensor, live_fullscreen: "card" });
-    expect(config.live_fullscreen).toBe("card");
+  it("accepts live_fullscreen: video", () => {
+    const { config } = normalizeConfig({ ...minimalSensor, live_fullscreen: "video" });
+    expect(config.live_fullscreen).toBe("video");
   });
 });
 
@@ -707,7 +707,7 @@ describe("Defaults are applied", () => {
     expect(config.object_fit).toBe("cover");
     expect(config.controls_mode).toBe("overlay");
     expect(config.bar_position).toBe("top");
-    expect(config.live_fullscreen).toBe("video");
+    expect(config.live_fullscreen).toBe("card");
   });
 });
 
