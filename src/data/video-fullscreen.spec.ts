@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   armWebkitExitResume,
+  liveFullscreenTarget,
   pickVideoFullscreen,
   shouldResumeAfterExit,
 } from "./video-fullscreen";
@@ -124,5 +125,34 @@ describe("armWebkitExitResume", () => {
     video.fire("webkitendfullscreen");
     vi.advanceTimersByTime(500);
     expect(video.plays).toBe(1);
+  });
+});
+
+describe("liveFullscreenTarget", () => {
+  const webkitVideo = { webkitSupportsFullscreen: true, webkitEnterFullscreen: noop };
+  const plainVideo = { requestFullscreen: noop };
+
+  it("keeps the card path when the user asked for card", () => {
+    expect(liveFullscreenTarget("card", false, webkitVideo, true)).toBe("card");
+  });
+
+  it("keeps the card path for grid layout, whatever the setting", () => {
+    expect(liveFullscreenTarget("video", true, webkitVideo, true)).toBe("card");
+  });
+
+  it("goes native on Apple for a single camera", () => {
+    expect(liveFullscreenTarget("video", false, webkitVideo, true)).toBe("webkit");
+  });
+
+  it("uses the video element's requestFullscreen elsewhere", () => {
+    expect(liveFullscreenTarget("video", false, plainVideo, true)).toBe("standard");
+  });
+
+  it("falls back to the card path without a video element", () => {
+    expect(liveFullscreenTarget("video", false, null, true)).toBe("card");
+  });
+
+  it("falls back to the card path when element fullscreen is unavailable", () => {
+    expect(liveFullscreenTarget("video", false, plainVideo, false)).toBe("card");
   });
 });
