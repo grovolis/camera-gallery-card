@@ -74,7 +74,7 @@ import {
   sortPillsByOrder,
 } from "./data/pill-catalog";
 import { WebRtcMicClient } from "./data/webrtc-mic";
-import { pickVideoFullscreen, shouldResumeAfterExit } from "./data/video-fullscreen";
+import { armWebkitExitResume, pickVideoFullscreen, shouldResumeAfterExit } from "./data/video-fullscreen";
 import {
   detectPtzType,
   detectPtzButtons,
@@ -2110,6 +2110,7 @@ class CameraGalleryCard extends LitElement {
 
     // iOS Safari: webkitEnterFullscreen op video element
     if (video && video.webkitSupportsFullscreen) {
+      armWebkitExitResume(video);
       video.webkitEnterFullscreen();
       return;
     }

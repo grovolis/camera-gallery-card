@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pickVideoFullscreen, shouldResumeAfterExit } from "./video-fullscreen";
+import {
+  armWebkitExitResume,
+  pickVideoFullscreen,
+  shouldResumeAfterExit,
+} from "./video-fullscreen";
 
 const noop = () => {};
 
@@ -63,5 +67,62 @@ describe("shouldResumeAfterExit", () => {
 
   it("does nothing when no pause happened", () => {
     expect(shouldResumeAfterExit(true, null, exitedAt)).toBe(false);
+  });
+});
+
+describe("armWebkitExitResume", () => {
+  const makeVideo = () => {
+    const listeners: Record<string, Array<() => void>> = {};
+    return {
+      paused: false,
+      plays: 0,
+      addEventListener(type: string, fn: () => void, opts?: { once: boolean }) {
+        const wrapped = opts?.once
+          ? () => {
+              listeners[type] = (listeners[type] ?? []).filter((f) => f !== wrapped);
+              fn();
+            }
+          : fn;
+        (listeners[type] ??= []).push(wrapped);
+      },
+      fire(type: string) {
+        for (const fn of [...(listeners[type] ?? [])]) fn();
+      },
+      play() {
+        this.plays++;
+        return Promise.resolve();
+      },
+    };
+  };
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("plays again once iPhone has paused the stream after exit", () => {
+    const video = makeVideo();
+    armWebkitExitResume(video);
+    video.fire("webkitendfullscreen");
+    video.paused = true;
+    vi.advanceTimersByTime(500);
+    expect(video.plays).toBe(1);
+  });
+
+  it("does nothing when playback survived the exit", () => {
+    const video = makeVideo();
+    armWebkitExitResume(video);
+    video.fire("webkitendfullscreen");
+    vi.advanceTimersByTime(500);
+    expect(video.plays).toBe(0);
+  });
+
+  it("only reacts to the first exit", () => {
+    const video = makeVideo();
+    armWebkitExitResume(video);
+    video.fire("webkitendfullscreen");
+    video.paused = true;
+    vi.advanceTimersByTime(500);
+    video.fire("webkitendfullscreen");
+    vi.advanceTimersByTime(500);
+    expect(video.plays).toBe(1);
   });
 });

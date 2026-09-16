@@ -39,3 +39,22 @@ export function shouldResumeAfterExit(
 ): boolean {
   return wasPlaying && pausedAt !== null && pausedAt >= exitedAt - EXIT_PAUSE_WINDOW_MS;
 }
+
+export interface ResumableVideo {
+  paused: boolean;
+  addEventListener(type: string, fn: () => void, opts?: { once: boolean }): void;
+  play(): Promise<void>;
+}
+
+/** Live view has no user pause, so any pause after exit is iPhone's. */
+export function armWebkitExitResume(video: ResumableVideo, delayMs = 500): void {
+  video.addEventListener(
+    "webkitendfullscreen",
+    () => {
+      setTimeout(() => {
+        if (video.paused) video.play().catch(() => {});
+      }, delayMs);
+    },
+    { once: true }
+  );
+}
