@@ -24,7 +24,18 @@ export function pickVideoFullscreen(
   return "overlay";
 }
 
-/** iPhone WebKit pauses the clip when leaving native fullscreen. */
-export function shouldResumeAfterExit(wasPlaying: boolean, pausedNow: boolean): boolean {
-  return wasPlaying && pausedNow;
+/** A pause this close to the exit event is iPhone's doing, not the user's. */
+export const EXIT_PAUSE_WINDOW_MS = 1000;
+
+/**
+ * iPhone WebKit pauses the clip when leaving native fullscreen, a beat
+ * after webkitendfullscreen fires. Resume only if the clip was playing
+ * when we went fullscreen and the pause landed around the exit.
+ */
+export function shouldResumeAfterExit(
+  wasPlaying: boolean,
+  pausedAt: number | null,
+  exitedAt: number
+): boolean {
+  return wasPlaying && pausedAt !== null && pausedAt >= exitedAt - EXIT_PAUSE_WINDOW_MS;
 }

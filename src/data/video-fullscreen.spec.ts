@@ -43,15 +43,25 @@ describe("pickVideoFullscreen", () => {
 });
 
 describe("shouldResumeAfterExit", () => {
-  it("resumes when the clip was playing and the platform paused it", () => {
-    expect(shouldResumeAfterExit(true, true)).toBe(true);
+  const exitedAt = 10_000;
+
+  it("resumes when iPhone pauses the clip right after leaving fullscreen", () => {
+    expect(shouldResumeAfterExit(true, exitedAt + 50, exitedAt)).toBe(true);
   });
 
-  it("leaves a clip alone that was already paused before fullscreen", () => {
-    expect(shouldResumeAfterExit(false, true)).toBe(false);
+  it("resumes when the forced pause lands just before the exit event", () => {
+    expect(shouldResumeAfterExit(true, exitedAt - 200, exitedAt)).toBe(true);
   });
 
-  it("does nothing when playback survived the exit", () => {
-    expect(shouldResumeAfterExit(true, false)).toBe(false);
+  it("leaves a clip alone that the user paused earlier in fullscreen", () => {
+    expect(shouldResumeAfterExit(true, exitedAt - 5_000, exitedAt)).toBe(false);
+  });
+
+  it("leaves a clip alone that was paused before entering fullscreen", () => {
+    expect(shouldResumeAfterExit(false, exitedAt + 50, exitedAt)).toBe(false);
+  });
+
+  it("does nothing when no pause happened", () => {
+    expect(shouldResumeAfterExit(true, null, exitedAt)).toBe(false);
   });
 });

@@ -296,6 +296,7 @@ class CameraGalleryCard extends LitElement {
     this._previewMediaKey = "";
     this._previewVideoEl = null;
     this._videoFsWasPlaying = false;
+    this._videoLastPauseAt = null;
     this._prefetchKey = "";
     this._selectedPreviewSrc = "";
     this._deleted = new Set();
@@ -1113,6 +1114,7 @@ class CameraGalleryCard extends LitElement {
       });
       video.addEventListener("pause", () => {
         this._galleryPlaying = false;
+        this._videoLastPauseAt = performance.now();
         this._stopGalleryProgressRaf();
       });
       video.addEventListener("ended", () => {
@@ -2420,10 +2422,16 @@ class CameraGalleryCard extends LitElement {
   _onVideoFullscreenExit(video) {
     video.controls = false;
     video.style.pointerEvents = "";
-    if (shouldResumeAfterExit(this._videoFsWasPlaying, video.paused)) {
-      video.play().catch(() => {});
-    }
+    const wasPlaying = this._videoFsWasPlaying;
+    const exitedAt = performance.now();
     this._videoFsWasPlaying = false;
+    // iPhone pauses after this event, not before it. Look again shortly.
+    setTimeout(() => {
+      if (!video.paused || video !== this._previewVideoEl) return;
+      if (shouldResumeAfterExit(wasPlaying, this._videoLastPauseAt, exitedAt)) {
+        video.play().catch(() => {});
+      }
+    }, 500);
   }
 
   _openImageFullscreen() {
